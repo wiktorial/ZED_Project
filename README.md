@@ -1,2 +1,2 @@
 # ZED_Project
-Projket w języku R
+Projekt w języku R
