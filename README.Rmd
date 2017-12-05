@@ -2,7 +2,6 @@
 title: "Projekt ZED"
 output: 
   html_document:
-    keep_md: yes
     toc: true
 ---
 
@@ -41,29 +40,27 @@ data_set$miesiac <- as.numeric(format(as.POSIXct(factor(data_set$data),format="%
 
 ##Kod przetwarzający dane
 ```{r missing_values_irradiamento}
-#not_empty_radiation <- dataset1 %>% filter(irradiamento != 0)
-#empty_radiation <- dataset1 %>% filter(irradiamento == 0)
+not_empty_radiation <- data_set %>% filter(irradiamento != 0)
+empty_radiation <- data_set %>% filter(irradiamento == 0)
 
-#start <- Sys.time()
-#for(i in 1:nrow(empty_radiation)) 
-#{
-    #row <- empty_radiation[i,]
-    #m <- not_empty_radiation %>% filter(miesiac == empty_radiation[i,"miesiac"], godzina == empty_radiation[i,"godzina"])
-    #if (nrow(m) ==0)
-    #{
-      #empty_radiation[i,"irradiamento"] <- 0
-    #}
-    #else
-    #{
-      #empty_radiation[i,"irradiamento"] <- mean(m[["irradiamento"]])
-    #}
-#} 
-#end <- Sys.time()
-#print(end - start)
-#data_set <- rbind(empty_radiation, not_empty_radiation) 
+for(i in 1:nrow(empty_radiation)) 
+{
+    row <- empty_radiation[i,]
+    m <- not_empty_radiation %>% filter(miesiac == empty_radiation[i,"miesiac"], godzina == empty_radiation[i,"godzina"], idsito == empty_radiation[i, "idsito"])
+    if (nrow(m) ==0)
+    {
+      empty_radiation[i,"irradiamento"] <- 0
+    }
+    else
+    {
+      empty_radiation[i,"irradiamento"] <- mean(m[["irradiamento"]]) #summarize(m, irra_mean = mean(irradiamento))
+    }
+} 
+#połączenie dwóch data frameów, w wynikowy "data1"
+data_set1 <- rbind(empty_radiation, not_empty_radiation) 
 ```
 
-##Wstępna analiza danych
+##Analiza danych
 Zaimportowany zbiór zawiera dane pochodzące z czujników umieszczonych przy panelach fotowoltaicznych, umieszczonych w trzech sąsiadujących elektrowni słonecznych we Włoszech. Zbiór składa się z 235790  wierdzy oraz 51 kolumn. Celem analizy jest znalezienie czynnika, który najtrafniej pozwoli przewidzieć wartość wytworzonej energi przez panele fotowoltaiczne. 
 Każdy wiersz zawiera uśrednione dane z jednej godziny pomiarów pojedynczej jednostki fotowoltaicznej. 
 
@@ -71,28 +68,28 @@ Kolumny zbioru danych dotyczą specyfikacji panelu (identyfikator panelu, modelu
 
 W zbiorze danych znajują się wartości zerowe, nie tylko w miejscach gdzie żeczywiście odnotowany został taki pomiar, ale także gdzie, poprzez usterke panelu nie doszło do pomiaru. Powyższy wniosek opiera się na analizie pomiarów dokonanych o zbliżonej porze dnia, roku oraz stopniu zachmurzenia.
 
-Położenie geograficzne nie jest bardzo istotne, ponieważ wszystkie panele są rozmieszczone w stosunkowo niewielkich odległościach (sasiednie elektrownie na terenie jednego kraju, takie samej strefy klimatycznej i wysokości nad poziomem morza). W kategorii czynników pogodowych, najbardziej istotne jest napromieniowanie oraz zachmurzenie, ponieważ to od stopnia nasłoneczenie zależy wartość kwh. Z tym bezpośrednio związana jest data pomiaru, ponieważ siła napromieniowania jest różna w zależności od pory dnia i roku. 
+Położenie geograficzne nie jest bardzo istotne, ponieważ wszystkie panele są rozmieszczone w stosunkowo niewielkich odległościach (sasiednie elektrownie na terenie jednego kraju, takie samej strefy klimatycznej i wysokości nad poziomem morza). W kategorii czynników pogodowych, najbardziej istotne jest napromieniowanie, ponieważ to od stopnia nasłoneczenie zależy wartość kwh. Z tym bezpośrednio związana jest data pomiaru, ponieważ siła napromieniowania jest różna w zależności od pory dnia i roku. 
 Dlatego też wartości "puste" najbardziej dotlikwe są dla danych dotyczących napromieniowania. 
 
-Nastepnie sporządzone zostały hostogramy dla atrybutów oraz korelacja pomiędzy poszczególnymi zmiennymi zbioru danych. Zgodnie z początkową analizą korelacja ukazała, ze na ilość wytwarzanej energii ma wpływ promieniowanie, a także wilgotność oraz azymut. Te argumenty zostały wskazane do regresji.
+Nastepnie sporządzone zostały hostogramy dla atrybutów oraz korelacja pomiędzy poszczególnymi zmiennymi zbioru danych. Zgodnie z początkową analizą korelacja ukazała, ze na ilość wytwarzanej energii ma wpływ promieniowanie, a także wilgotność. Te argumenty zostały wskazane do regresji.
 
 ##Sekcję podsumowującą rozmiar zbioru i podstawowe statystyki
 ```{r summary}
 #uwtorzenie podsumowania, statystyk ze zbioru danych "dataset". 
-selected_data <- select(data_set,idsito, idbrand, idmodel,temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint, kwh, azimuth)
+selected_data <- select(data_set1,idsito, idbrand, idmodel,temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint, kwh, azimuth)
 summary(selected_data)
 ```
 
 ##Szczegółowa analizę wartości atrybutów
 ```{r histogram}
 #Wybranie określonych kolumn ze zbioru dataset, po wcześniejszej pobieżnej analizie ich ważności. Wybrane zostały głównie kolumny związane z czynnikami pogodowymi a także identyfikator panela fotowoltaicznego oraz wartość prezentującą wytworzoną energię. 
-selected_data <- select(data_set,idsito, idbrand, idmodel,temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint, kwh, azimuth)
+selected_data <- select(data_set1,idsito, idbrand, idmodel,temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint, kwh, azimuth)
 
 #W poniższym kroku konstruowany jest wykres za pomocą funkcji "ggplot", który przedtawia rozkład wartości każdego z aktrybutów. 
-p <- ggplot(data = melt(selected_data), mapping = aes(x = value)) + 
+p <- ggplot(data = melt(selected_data), aes(x = value)) + 
   geom_histogram(bins=10, aes(fill=..count..)) + 
-  labs(title = "Rozkład wartości atrybutów") + 
-  facet_wrap(~variable, ncol=4, scales = 'free_x') + 
+  labs(title = "Rozkład wartości atrybutów - histogram") + 
+  facet_wrap(~variable, ncol=4) + 
   scale_x_continuous(labels = scales::comma) + 
   scale_fill_gradient("Count", low="blue", high="pink") +
   theme_bw()
@@ -101,28 +98,26 @@ ggplotly(p)
 ```
 
 ##Korelacja pomiędzy wybranymi atrybutami
-```{r selected_attribute_correlation, fig.width= 9, fig.height= 4}
-#Ponowne wybranie określonych kolumn ze zbioru. 
-selected_data <- select(data_set,idsito, idbrand, idmodel,temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint,godzina,azimuth, irri, miesiac, kwh)
-
-#Utworzenie wykresu korealcji, za pomocą funkcji "ggcorr"
-ggcorr(selected_data, nbreaks = 4, label = TRUE, label_size = 4, label_color = "white")
+```{r attribute_correlation, fig.width= 8, fig.height= 8}
+selected_data <- select(data_set1,idsito, idbrand, idmodel, ageinmonths, temperatura_ambiente, irradiamento, pressure, windspeed, humidity, cloudcover,dewpoint,godzina, miesiac, kwh)
+ggcorr(data_set, nbreaks = 4, label = TRUE, label_size = 2, label_color = "white")
 ```
 
 ##Prezentacja zmiany wytwarzanej energii w czasie i przestrzeni
 ```{r interactive_plot, fig.width=9, fig.height=4}
 data_set <- data_set %>% mutate(data_format=format(as.POSIXct(data, format='%m/%d/%Y %H:%M'), "%Y-%m"))
 kwh_plot <- data_set %>% group_by(data_format, idsito) %>% summarise(suma=sum(kwh))
-ggplot(data = kwh_plot, mapping = aes(x=data_format, y=suma, color=factor(idsito), group=factor(idsito))) + 
-  geom_point() +
-  labs(title = "Wykres energii w czasie i przestrzeni", x = "Data", y = "Ilość wytworzonej energii[kwh]") +
-  theme(axis.text.x = element_text(angle = 90))
+p <- ggplot(data = kwh_plot, aes(x=data_format, y=suma, color=factor(idsito))) + 
+  geom_point() + labs(title = "Wykres energii w czasie i przestrzeni", x = "Data", y = "Ilość wytworzonej energii[kwh]") + theme(axis.text.x = element_text(angle = 90))
+
+ggplotly(p)
+
 ```
 
 ##Regresor przewidujący wytwarzaną energię
 ```{r regresor}
 set.seed(23)
-df_clear <- data_set %>% select(idsito, irradiamento, humidity, azimuth, kwh)
+df_clear <- data_set %>% select(idsito, irradiamento, humidity, kwh)
 
 inTraining <- createDataPartition(
 	y = df_clear$idsito, 
@@ -136,7 +131,7 @@ testing <- df_clear[-inTraining,]
 ctrl <- trainControl(method="repeatedcv", number=2, repeats=5)
 
 model <- train(
-	kwh ~ idsito + humidity + irradiamento + azimuth,
+	kwh ~ idsito + humidity + irradiamento,
 	data = training,
 	method = "lm",
 	metric = "RMSE",
